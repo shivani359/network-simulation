@@ -1,0 +1,28 @@
+kind = "web"
+previewPath = "/"
+title = "Network IDS Simulation"
+description = "A defensive cybersecurity learning dashboard that generates synthetic network-flow records, detects suspicious patterns with configurable rules and anomaly scoring, and guides SOC-style alert investigation without sending network traffic."
+version = "1.0.0"
+id = "artifacts/network-ids"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 18731
+
+[services.development]
+run = "pnpm --filter @workspace/network-ids run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/network-ids", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/network-ids/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "18731"
+BASE_PATH = "/"

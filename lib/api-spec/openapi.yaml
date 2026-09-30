@@ -10,6 +10,16 @@ servers:
 tags:
   - name: health
     description: Health operations
+  - name: dashboard
+    description: Dashboard summaries and traffic analytics
+  - name: flows
+    description: Synthetic network-flow records
+  - name: alerts
+    description: Detection alerts and analyst workflow
+  - name: simulation
+    description: Data-only traffic generation
+  - name: rules
+    description: Configurable detection rules
 paths:
   /healthz:
     get:
@@ -24,6 +34,241 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+  /dashboard/stats:
+    get:
+      operationId: getDashboardStats
+      tags: [dashboard]
+      summary: Get IDS dashboard totals
+      responses:
+        "200":
+          description: Dashboard totals
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DashboardStats"
+  /dashboard/traffic:
+    get:
+      operationId: getTrafficAnalytics
+      tags: [dashboard]
+      summary: Get traffic timeline and breakdowns
+      responses:
+        "200":
+          description: Traffic analytics
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TrafficAnalytics"
+  /flows:
+    get:
+      operationId: getFlows
+      tags: [flows]
+      summary: List recent analyzed flows
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 500
+            default: 100
+        - name: classification
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [NORMAL, SUSPICIOUS, POTENTIAL_INTRUSION]
+      responses:
+        "200":
+          description: Analyzed flows
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Flow"
+  /alerts:
+    get:
+      operationId: getAlerts
+      tags: [alerts]
+      summary: List alerts with optional filters
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 500
+            default: 100
+        - name: severity
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [INFO, LOW, MEDIUM, HIGH, CRITICAL]
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [NEW, INVESTIGATING, RESOLVED, FALSE_POSITIVE]
+      responses:
+        "200":
+          description: Detection alerts
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Alert"
+  /alerts/{alertId}:
+    get:
+      operationId: getAlert
+      tags: [alerts]
+      summary: Get alert investigation details
+      parameters:
+        - name: alertId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Alert and related flow details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AlertDetail"
+        "404":
+          description: Alert not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /alerts/{alertId}/status:
+    patch:
+      operationId: updateAlertStatus
+      tags: [alerts]
+      summary: Update analyst disposition
+      parameters:
+        - name: alertId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AlertStatusUpdate"
+      responses:
+        "200":
+          description: Updated alert
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Alert"
+        "404":
+          description: Alert not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /alerts/{alertId}/notes:
+    post:
+      operationId: addAlertNote
+      tags: [alerts]
+      summary: Add an analyst note
+      parameters:
+        - name: alertId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AnalystNoteInput"
+      responses:
+        "201":
+          description: Saved analyst note
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AnalystNote"
+        "404":
+          description: Alert not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /simulation/generate:
+    post:
+      operationId: generateSyntheticFlows
+      tags: [simulation]
+      summary: Generate and analyze synthetic flow records
+      description: Generates data records only; does not send packets or contact any address.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SimulationInput"
+      responses:
+        "201":
+          description: Generated and analyzed batch
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SimulationResult"
+  /rules:
+    get:
+      operationId: getRules
+      tags: [rules]
+      summary: List detection rules
+      responses:
+        "200":
+          description: Configurable detection rules
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/DetectionRule"
+  /rules/{ruleId}:
+    patch:
+      operationId: updateRule
+      tags: [rules]
+      summary: Enable, disable, or tune a detection rule
+      parameters:
+        - name: ruleId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DetectionRuleUpdate"
+      responses:
+        "200":
+          description: Updated detection rule
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DetectionRule"
+        "404":
+          description: Rule not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
 components:
   schemas:
     HealthStatus:
@@ -33,4 +278,218 @@ components:
           type: string
       required:
         - status
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+      required: [error]
+    Flow:
+      type: object
+      properties:
+        flowId: { type: string }
+        timestamp: { type: string, format: date-time }
+        sourceIp: { type: string }
+        destinationIp: { type: string }
+        sourcePort: { type: integer }
+        destinationPort: { type: integer }
+        protocol: { type: string, enum: [TCP, UDP, ICMP] }
+        packetCount: { type: integer }
+        byteCount: { type: integer }
+        durationSeconds: { type: number }
+        connectionCount: { type: integer }
+        failedConnectionCount: { type: integer }
+        synCount: { type: integer }
+        rstCount: { type: integer }
+        averagePacketSize: { type: number }
+        uniqueDestinationPorts: { type: integer }
+        uniqueDestinationIps: { type: integer }
+        scenarioType: { type: string }
+        classification: { type: string, enum: [NORMAL, SUSPICIOUS, POTENTIAL_INTRUSION] }
+        riskScore: { type: integer, minimum: 0, maximum: 100 }
+        anomalyScore: { type: integer, minimum: 0, maximum: 100 }
+        ruleIds:
+          type: array
+          items: { type: string }
+      required:
+        - flowId
+        - timestamp
+        - sourceIp
+        - destinationIp
+        - sourcePort
+        - destinationPort
+        - protocol
+        - packetCount
+        - byteCount
+        - durationSeconds
+        - connectionCount
+        - failedConnectionCount
+        - synCount
+        - rstCount
+        - averagePacketSize
+        - uniqueDestinationPorts
+        - uniqueDestinationIps
+        - scenarioType
+        - classification
+        - riskScore
+        - anomalyScore
+        - ruleIds
+    Alert:
+      type: object
+      properties:
+        alertId: { type: string }
+        flowId: { type: string }
+        timestamp: { type: string, format: date-time }
+        sourceIp: { type: string }
+        destinationIp: { type: string }
+        protocol: { type: string }
+        sourcePort: { type: integer }
+        destinationPort: { type: integer }
+        ruleId: { type: string }
+        alertType: { type: string }
+        severity: { type: string, enum: [INFO, LOW, MEDIUM, HIGH, CRITICAL] }
+        riskScore: { type: integer, minimum: 0, maximum: 100 }
+        anomalyScore: { type: integer, minimum: 0, maximum: 100 }
+        description: { type: string }
+        status: { type: string, enum: [NEW, INVESTIGATING, RESOLVED, FALSE_POSITIVE] }
+        scenarioType: { type: string }
+      required:
+        - alertId
+        - flowId
+        - timestamp
+        - sourceIp
+        - destinationIp
+        - protocol
+        - sourcePort
+        - destinationPort
+        - ruleId
+        - alertType
+        - severity
+        - riskScore
+        - anomalyScore
+        - description
+        - status
+        - scenarioType
+    AnalystNote:
+      type: object
+      properties:
+        noteId: { type: string }
+        alertId: { type: string }
+        note: { type: string }
+        createdAt: { type: string, format: date-time }
+      required: [noteId, alertId, note, createdAt]
+    AlertDetail:
+      type: object
+      properties:
+        alert:
+          $ref: "#/components/schemas/Alert"
+        flow:
+          $ref: "#/components/schemas/Flow"
+        notes:
+          type: array
+          items:
+            $ref: "#/components/schemas/AnalystNote"
+        investigationSteps:
+          type: array
+          items: { type: string }
+      required: [alert, flow, notes, investigationSteps]
+    DashboardStats:
+      type: object
+      properties:
+        totalFlows: { type: integer }
+        normalFlows: { type: integer }
+        suspiciousFlows: { type: integer }
+        openAlerts: { type: integer }
+        criticalAlerts: { type: integer }
+        averageRiskScore: { type: number }
+        simulationRunning: { type: boolean }
+        generatedAt: { type: string, format: date-time }
+      required: [totalFlows, normalFlows, suspiciousFlows, openAlerts, criticalAlerts, averageRiskScore, simulationRunning, generatedAt]
+    Breakdown:
+      type: object
+      properties:
+        label: { type: string }
+        value: { type: integer }
+      required: [label, value]
+    TrafficBucket:
+      type: object
+      properties:
+        timestamp: { type: string, format: date-time }
+        flows: { type: integer }
+        suspicious: { type: integer }
+        averageRisk: { type: number }
+      required: [timestamp, flows, suspicious, averageRisk]
+    TrafficAnalytics:
+      type: object
+      properties:
+        timeline:
+          type: array
+          items: { $ref: "#/components/schemas/TrafficBucket" }
+        protocols:
+          type: array
+          items: { $ref: "#/components/schemas/Breakdown" }
+        destinationPorts:
+          type: array
+          items: { $ref: "#/components/schemas/Breakdown" }
+        severities:
+          type: array
+          items: { $ref: "#/components/schemas/Breakdown" }
+        alertTypes:
+          type: array
+          items: { $ref: "#/components/schemas/Breakdown" }
+        topSources:
+          type: array
+          items: { $ref: "#/components/schemas/Breakdown" }
+        riskBuckets:
+          type: array
+          items: { $ref: "#/components/schemas/Breakdown" }
+      required: [timeline, protocols, destinationPorts, severities, alertTypes, topSources, riskBuckets]
+    SimulationInput:
+      type: object
+      properties:
+        count: { type: integer, minimum: 1, maximum: 100 }
+        mode: { type: string, enum: [normal, mixed, suspicious] }
+        scenario:
+          type: ["string", "null"]
+          enum: [NORMAL_WEB, NORMAL_DNS, NORMAL_SSH, NORMAL_EMAIL, NORMAL_DATABASE, HIGH_CONNECTION_RATE, REPEATED_FAILED_CONNECTIONS, MULTI_PORT_PROBING_PATTERN, SYN_HEAVY_PATTERN, UNUSUAL_PORT_ACTIVITY, HIGH_TRAFFIC_VOLUME, null]
+      required: [count, mode]
+    SimulationResult:
+      type: object
+      properties:
+        generated: { type: integer }
+        alertsCreated: { type: integer }
+        flows:
+          type: array
+          items: { $ref: "#/components/schemas/Flow" }
+        alerts:
+          type: array
+          items: { $ref: "#/components/schemas/Alert" }
+      required: [generated, alertsCreated, flows, alerts]
+    AlertStatusUpdate:
+      type: object
+      properties:
+        status: { type: string, enum: [NEW, INVESTIGATING, RESOLVED, FALSE_POSITIVE] }
+        resolutionNotes: { type: string, maxLength: 2000 }
+      required: [status]
+    AnalystNoteInput:
+      type: object
+      properties:
+        note: { type: string, minLength: 1, maxLength: 2000 }
+      required: [note]
+    DetectionRule:
+      type: object
+      properties:
+        ruleId: { type: string }
+        name: { type: string }
+        description: { type: string }
+        severity: { type: string, enum: [INFO, LOW, MEDIUM, HIGH, CRITICAL] }
+        threshold: { type: number }
+        thresholdLabel: { type: string }
+        enabled: { type: boolean }
+      required: [ruleId, name, description, severity, threshold, thresholdLabel, enabled]
+    DetectionRuleUpdate:
+      type: object
+      properties:
+        threshold: { type: number, minimum: 0 }
+        enabled: { type: boolean }
 
